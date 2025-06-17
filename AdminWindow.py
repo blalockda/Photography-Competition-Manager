@@ -10,7 +10,7 @@ class AdminWindow:
         self.master = master
         master.title("Photo Competition Admin")
         master.geometry("650x600")
-        master.resizable(False, False)
+        master.resizable(True, True)
 
         # === DATABASE SETUP ===
         self.db = sqlite3.connect("competition.db")
@@ -145,7 +145,7 @@ class AdminWindow:
         dialog = tk.Toplevel(self.master)
         dialog.title("Add New Photo")
         dialog.geometry("500x700")
-        dialog.resizable(False, False)
+        dialog.resizable(True, True)
         dialog.transient(self.master)
         dialog.grab_set()
 
