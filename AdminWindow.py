@@ -139,7 +139,6 @@ class AdminWindow:
             return None
 
     def on_listbox_click(self, event):
-        # Simulate selection (highlight the line)
         self.photo_listbox.configure(state="normal")
         self.photo_listbox.tag_remove("sel", "1.0", "end")
         index = self.get_selected_index()
@@ -173,9 +172,10 @@ class AdminWindow:
 
         win = ctk.CTkToplevel(self.master)
         win.title(f"{photo_name} by {photographer} [{category}]")
-        win.geometry("800x800")
+        win.geometry("800x850")
         win.resizable(True, True)
 
+        # Display the image (as before)
         try:
             pil_img = Image.open(filepath)
         except Exception as e:
@@ -195,12 +195,52 @@ class AdminWindow:
         ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=new_size)
         img_label = ctk.CTkLabel(win, image=ctk_img, text="")
         img_label.image = ctk_img
-        img_label.pack(padx=10, pady=10, expand=True)
+        img_label.pack(padx=10, pady=(10, 5), expand=True)
 
-        info = f"Name: {photo_name}\nPhotographer: {photographer}\nCategory: {category}\nPath: {filepath}"
-        ctk.CTkLabel(win, text=info, anchor="w", justify="left").pack(padx=10, pady=(0, 10), fill="x")
+        # Editable fields for photo name and photographer
+        edit_frame = ctk.CTkFrame(win)
+        edit_frame.pack(fill="x", padx=10, pady=(10, 0))
 
-        ctk.CTkButton(win, text="Close", command=win.destroy).pack(pady=(0, 15))
+        ctk.CTkLabel(edit_frame, text="Photo Name:").grid(row=0, column=0, sticky="w", padx=5, pady=(0, 2))
+        name_var = ctk.StringVar(value=photo_name)
+        name_entry = ctk.CTkEntry(edit_frame, textvariable=name_var, width=400)
+        name_entry.grid(row=0, column=1, padx=5, pady=(0, 2))
+
+        ctk.CTkLabel(edit_frame, text="Photographer:").grid(row=1, column=0, sticky="w", padx=5, pady=(0, 2))
+        photographer_var = ctk.StringVar(value=photographer)
+        photographer_entry = ctk.CTkEntry(edit_frame, textvariable=photographer_var, width=400)
+        photographer_entry.grid(row=1, column=1, padx=5, pady=(0, 2))
+
+        ctk.CTkLabel(edit_frame, text=f"Category: {category}").grid(row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(5, 2))
+        ctk.CTkLabel(edit_frame, text=f"Path: {filepath}", font=("Arial", 10)).grid(row=3, column=0, columnspan=2, sticky="w", padx=5, pady=(0, 5))
+
+        # Save button
+        def save_changes():
+            new_name = name_var.get().strip()
+            new_photographer = photographer_var.get().strip()
+            if not new_name:
+                messagebox.showwarning("Missing Field", "Photo name cannot be empty.", parent=win)
+                return
+            if not new_photographer:
+                messagebox.showwarning("Missing Field", "Photographer cannot be empty.", parent=win)
+                return
+            try:
+                cur2 = self.db.cursor()
+                cur2.execute(
+                    "UPDATE Photos SET photo_name = ?, photographer = ? WHERE id = ?",
+                    (new_name, new_photographer, photo_id)
+                )
+                self.db.commit()
+                messagebox.showinfo("Saved", "Photo information updated!", parent=win)
+                self.refresh_photo_list()
+                win.destroy()
+            except sqlite3.Error as e:
+                messagebox.showerror("Database Error", f"Could not update photo:\n{e}", parent=win)
+
+        button_frame = ctk.CTkFrame(win)
+        button_frame.pack(fill="x", padx=10, pady=(15, 15))
+        ctk.CTkButton(button_frame, text="Save", command=save_changes, width=120).pack(side="right", padx=(0, 5))
+        ctk.CTkButton(button_frame, text="Close", command=win.destroy, width=120).pack(side="right", padx=(10, 0))
 
     def open_add_photo_dialog(self):
         dialog = ctk.CTkToplevel(self.master)
