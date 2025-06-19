@@ -239,8 +239,8 @@ class AdminWindow:
 
         button_frame = ctk.CTkFrame(win)
         button_frame.pack(fill="x", padx=10, pady=(15, 15))
-        ctk.CTkButton(button_frame, text="Save", command=save_changes, width=120).pack(side="right", padx=(0, 5))
-        ctk.CTkButton(button_frame, text="Close", command=win.destroy, width=120).pack(side="right", padx=(10, 0))
+        ctk.CTkButton(button_frame, text="Save", command=save_changes, width=120).pack(side="right", padx=(0, 20))
+        ctk.CTkButton(button_frame, text="Close", command=win.destroy, width=120).pack(side="right", padx=(0, 10))
 
     def open_add_photo_dialog(self):
         dialog = ctk.CTkToplevel(self.master)
@@ -376,10 +376,10 @@ class AdminWindow:
             self.refresh_photo_list()
 
         add_btn = ctk.CTkButton(button_frame, text="Add Photo", width=120, command=on_add)
-        add_btn.pack(side="right", padx=(0, 10))
+        add_btn.pack(side="right", padx=(0, 20))
 
         cancel_btn = ctk.CTkButton(button_frame, text="Cancel", width=120, command=dialog.destroy)
-        cancel_btn.pack(side="right", padx=(10, 0))
+        cancel_btn.pack(side="right", padx=(0, 10))
 
         photo_name_entry.focus_set()
 
