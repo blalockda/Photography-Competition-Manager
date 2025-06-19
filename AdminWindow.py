@@ -336,7 +336,8 @@ class AdminWindow:
 
     def remove_selected_photo(self):
         """
-        Delete the photo currently selected in the Listbox from the DB, then refresh.
+        Delete the photo currently selected in the Listbox from the DB,
+        remove its image file, then refresh.
         """
         sel_indices = self.photo_listbox.curselection()
         if not sel_indices:
@@ -355,6 +356,18 @@ class AdminWindow:
 
         try:
             cursor = self.db.cursor()
+            # Fetch the file path before deletion
+            cursor.execute("SELECT filepath FROM Photos WHERE id = ?", (photo_id,))
+            row = cursor.fetchone()
+            if row:
+                file_path = row[0]
+                # Remove the file from disk if it exists
+                if os.path.isfile(file_path):
+                    try:
+                        os.remove(file_path)
+                    except Exception as e:
+                        messagebox.showwarning("File Delete Error", f"Could not remove file:\n{file_path}\n{e}")
+
             cursor.execute("DELETE FROM Photos WHERE id = ?", (photo_id,))
             self.db.commit()
             self.refresh_photo_list()
@@ -374,12 +387,21 @@ class AdminWindow:
 
         try:
             cursor = self.db.cursor()
+            cursor.execute("SELECT filepath FROM Photos")
+            rows = cursor.fetchall()
+            for (file_path,) in rows:
+                if os.path.isfile(file_path):
+                    try:
+                        os.remove(file_path)
+                    except Exception as e:
+                        # Continue removing other files; show warning only if needed
+                        print(f"Warning: Could not remove file {file_path}: {e}")
+
             cursor.execute("DELETE FROM Photos")
             self.db.commit()
             self.refresh_photo_list()
         except sqlite3.Error as e:
             messagebox.showerror("Database Error", f"Failed to reset data:\n{e}")
-
 
 if __name__ == "__main__":
     root = tk.Tk()
