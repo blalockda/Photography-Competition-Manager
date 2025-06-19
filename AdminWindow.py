@@ -17,8 +17,6 @@ class AdminWindow:
         self.ensure_tables()
 
         # === CATEGORY SECTION ===
-        # This Combobox now serves both to select the category for adding a photo
-        # and to filter which photos are shown in the main list.
         self.category_frame = tk.LabelFrame(master, text="Select Category Level", padx=10, pady=10)
         self.category_frame.pack(fill="x", padx=10, pady=(10, 5))
 
@@ -33,7 +31,6 @@ class AdminWindow:
             values=["Beginner", "Intermediate", "Advanced"]
         )
         self.category_combobox.pack(fill="x", padx=5)
-        # Bind selection change to refresh the photo list based on the chosen category
         self.category_combobox.bind("<<ComboboxSelected>>", lambda e: self.refresh_photo_list())
 
         # === PHOTO LIST SECTION ===
@@ -47,7 +44,10 @@ class AdminWindow:
         self.scrollbar.pack(side="left", fill="y", pady=5)
         self.photo_listbox.config(yscrollcommand=self.scrollbar.set)
 
-        self.photo_index_map = {}  # maps listbox index → photo_id
+        self.photo_index_map = {}
+
+        # Double-click to open photo
+        self.photo_listbox.bind("<Double-1>", self.on_listbox_double_click)
 
         # === BUTTON BAR (ADD / REMOVE / RESET) ===
         self.button_bar = tk.Frame(master)
@@ -149,19 +149,16 @@ class AdminWindow:
         dialog.transient(self.master)
         dialog.grab_set()
 
-        # --- Photo Name ---
         tk.Label(dialog, text="Photo Name:").pack(anchor="w", padx=10, pady=(15, 2))
         photo_name_var = tk.StringVar()
         photo_name_entry = tk.Entry(dialog, textvariable=photo_name_var, width=60)
         photo_name_entry.pack(padx=10, pady=(0, 10))
 
-        # --- Photographer Name ---
         tk.Label(dialog, text="Photographer Name:").pack(anchor="w", padx=10, pady=(0, 2))
         photographer_var = tk.StringVar()
         photographer_entry = tk.Entry(dialog, textvariable=photographer_var, width=60)
         photographer_entry.pack(padx=10, pady=(0, 10))
 
-        # --- Filepath Selection ---
         tk.Label(dialog, text="Select Photo File:").pack(anchor="w", padx=10, pady=(0, 2))
         file_frame = tk.Frame(dialog)
         file_frame.pack(fill="x", padx=10, pady=(0, 10))
@@ -191,7 +188,6 @@ class AdminWindow:
         browse_btn = tk.Button(file_frame, text="Browse...", command=browse_file, width=10)
         browse_btn.pack(side="left", padx=(5, 0))
 
-        # --- Image Preview Area ---
         preview_frame = tk.LabelFrame(dialog, text="Image Preview", padx=10, pady=10, height=350)
         preview_frame.pack(fill="x", padx=10, pady=(5, 10))
         preview_frame.pack_propagate(False)
@@ -212,13 +208,11 @@ class AdminWindow:
             rotate_btn.config(state="normal")
 
         def display_resized_image(pil_img):
-            # Resize for preview: max dimension 300×300
             img_copy = pil_img.copy()
-            # Replace ANTIALIAS with LANCZOS (or Image.Resampling.LANCZOS if you prefer)
             img_copy.thumbnail((300, 300), Image.LANCZOS)
             tk_img = ImageTk.PhotoImage(img_copy)
             preview_label.config(image=tk_img)
-            preview_label.image = tk_img  # Keep a reference so it isn’t garbage-collectede
+            preview_label.image = tk_img
 
         def rotate_image():
             if current_pil_image["img"] is None:
@@ -230,7 +224,6 @@ class AdminWindow:
         rotate_btn = tk.Button(dialog, text="Rotate 90°", state="disabled", command=rotate_image)
         rotate_btn.pack(pady=(0, 10))
 
-        # --- Buttons (Add / Cancel) ---
         button_frame = tk.Frame(dialog)
         button_frame.pack(fill="x", side="bottom", pady=(0, 10))
 
@@ -241,7 +234,6 @@ class AdminWindow:
             category = self.selected_category_level.get()
             pil_img = current_pil_image["img"]
 
-            # Validation
             if not name:
                 messagebox.showwarning("Missing Field", "Please enter a Photo Name.", parent=dialog)
                 return
@@ -255,7 +247,6 @@ class AdminWindow:
                 messagebox.showwarning("No Image", "No image has been loaded for preview.", parent=dialog)
                 return
 
-            # Prepare internal storage directory
             storage_dir = "competition_images"
             os.makedirs(storage_dir, exist_ok=True)
             base_name = os.path.basename(filepath)
@@ -263,14 +254,12 @@ class AdminWindow:
             new_filename = f"{timestamp}_{base_name}"
             new_path = os.path.join(storage_dir, new_filename)
 
-            # Save rotated (or original) image to storage_dir
             try:
                 pil_img.save(new_path)
             except Exception as e:
                 messagebox.showerror("Save Error", f"Failed to save rotated image:\n{e}", parent=dialog)
                 return
 
-            # Insert into DB with the chosen category
             try:
                 cursor = self.db.cursor()
                 cursor.execute("""
@@ -283,7 +272,6 @@ class AdminWindow:
                 return
 
             dialog.destroy()
-            # After adding, refresh list so only photos of this category are shown
             self.refresh_photo_list()
 
         add_btn = tk.Button(button_frame, text="Add Photo", width=12, command=on_add)
@@ -293,6 +281,58 @@ class AdminWindow:
         cancel_btn.pack(side="right", padx=(10, 0))
 
         photo_name_entry.focus_set()
+
+    def on_listbox_double_click(self, event):
+        """
+        Open the selected photo in a new window when double-clicked.
+        """
+        sel = self.photo_listbox.curselection()
+        if not sel:
+            return
+        idx = sel[0]
+        photo_id = self.photo_index_map.get(idx)
+        if photo_id is None:
+            return
+        cursor = self.db.cursor()
+        cursor.execute(
+            "SELECT filepath, photo_name, photographer, category FROM Photos WHERE id = ?", (photo_id,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            messagebox.showerror("Error", "Could not find photo in database.")
+            return
+        filepath, photo_name, photographer, category = row
+        if not os.path.isfile(filepath):
+            messagebox.showerror("Error", f"Image file not found:\n{filepath}")
+            return
+
+        win = tk.Toplevel(self.master)
+        win.title(f"{photo_name} by {photographer} [{category}]")
+        win.geometry("800x800")
+        win.resizable(True, True)
+
+        try:
+            pil_img = Image.open(filepath)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open image:\n{e}")
+            win.destroy()
+            return
+
+        img_w, img_h = pil_img.size
+        max_dim = 750
+        if img_w > max_dim or img_h > max_dim:
+            ratio = min(max_dim / img_w, max_dim / img_h)
+            pil_img = pil_img.resize((int(img_w * ratio), int(img_h * ratio)), Image.LANCZOS)
+
+        tk_img = ImageTk.PhotoImage(pil_img)
+        img_label = tk.Label(win, image=tk_img)
+        img_label.image = tk_img
+        img_label.pack(padx=10, pady=10, expand=True)
+
+        info = f"Name: {photo_name}\nPhotographer: {photographer}\nCategory: {category}\nPath: {filepath}"
+        tk.Label(win, text=info, anchor="w", justify="left").pack(padx=10, pady=(0, 10), fill="x")
+
+        tk.Button(win, text="Close", command=win.destroy).pack(pady=(0, 15))
 
     def remove_selected_photo(self):
         """
@@ -317,7 +357,6 @@ class AdminWindow:
             cursor = self.db.cursor()
             cursor.execute("DELETE FROM Photos WHERE id = ?", (photo_id,))
             self.db.commit()
-            # After deletion, refresh list to reflect removal
             self.refresh_photo_list()
         except sqlite3.Error as e:
             messagebox.showerror("Database Error", f"Failed to remove photo:\n{e}")
@@ -337,7 +376,6 @@ class AdminWindow:
             cursor = self.db.cursor()
             cursor.execute("DELETE FROM Photos")
             self.db.commit()
-            # Clear the listbox (no photos in selected category anymore)
             self.refresh_photo_list()
         except sqlite3.Error as e:
             messagebox.showerror("Database Error", f"Failed to reset data:\n{e}")
